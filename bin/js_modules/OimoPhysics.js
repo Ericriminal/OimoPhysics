@@ -16163,10 +16163,10 @@ oimo.dynamics.World = class oimo_dynamics_World {
 		this._shapeIdCount = 0;
 	}
 	_updateContacts() {
-		let st = HxOverrides.now() / 1000;
+		let st = Date.now() / 1000;
 		this._contactManager._updateContacts();
-		oimo.dynamics.common.Performance.broadPhaseCollisionTime = (HxOverrides.now() / 1000 - st) * 1000;
-		let st1 = HxOverrides.now() / 1000;
+		oimo.dynamics.common.Performance.broadPhaseCollisionTime = (Date.now() / 1000 - st) * 1000;
+		let st1 = Date.now() / 1000;
 		let c = this._contactManager._contactList;
 		while(c != null) {
 			let n = c._next;
@@ -16175,10 +16175,10 @@ oimo.dynamics.World = class oimo_dynamics_World {
 			}
 			c = n;
 		}
-		oimo.dynamics.common.Performance.narrowPhaseCollisionTime = (HxOverrides.now() / 1000 - st1) * 1000;
+		oimo.dynamics.common.Performance.narrowPhaseCollisionTime = (Date.now() / 1000 - st1) * 1000;
 	}
 	_solveIslands() {
-		let st = HxOverrides.now() / 1000;
+		let st = Date.now() / 1000;
 		if(oimo.common.Setting.disableSleeping) {
 			let b = this._rigidBodyList;
 			while(b != null) {
@@ -16236,7 +16236,7 @@ oimo.dynamics.World = class oimo_dynamics_World {
 			this._solversInIslands[--this._numSolversInIslands]._addedToIsland = false;
 			this._solversInIslands[this._numSolversInIslands] = null;
 		}
-		oimo.dynamics.common.Performance.dynamicsTime = (HxOverrides.now() / 1000 - st) * 1000;
+		oimo.dynamics.common.Performance.dynamicsTime = (Date.now() / 1000 - st) * 1000;
 	}
 	buildIsland(base) {
 		let stackCount = 1;
@@ -17876,10 +17876,10 @@ oimo.dynamics.World = class oimo_dynamics_World {
 		}
 		this._timeStep.dt = timeStep;
 		this._timeStep.invDt = 1 / timeStep;
-		let st = HxOverrides.now() / 1000;
+		let st = Date.now() / 1000;
 		this._updateContacts();
 		this._solveIslands();
-		oimo.dynamics.common.Performance.totalTime = (HxOverrides.now() / 1000 - st) * 1000;
+		oimo.dynamics.common.Performance.totalTime = (Date.now() / 1000 - st) * 1000;
 	}
 	addRigidBody(rigidBody) {
 		if(rigidBody._world != null) {
@@ -36946,7 +36946,7 @@ if(!oimo.m) oimo.m = {};
 oimo.m.M = class oimo_m_M {
 }
 if(typeof(performance) != "undefined" ? typeof(performance.now) == "function" : false) {
-	HxOverrides.now = performance.now.bind(performance);
+	Date.now = performance.now.bind(performance);
 }
 {
 }
