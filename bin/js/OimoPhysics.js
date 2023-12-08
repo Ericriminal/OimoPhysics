@@ -16198,12 +16198,16 @@ class oimo_dynamics_ContactManager {
 	shouldCollide(s1,s2) {
 		let r1 = s1._rigidBody;
 		let r2 = s2._rigidBody;
-		if(r1 == r2) {
+		if(r1 == r2 || r1._type === 1 && r2._type === 1) {
 			return false;
 		}
-		if(r1._type != 0 && r2._type != 0) {
-			return false;
+
+		if(!s1.userData.colliderComp.isTrigger && !s2.userData.colliderComp.isTrigger) { // Collision
+			if(r1._type != 0 && r2._type != 0) { // both of them are not dynamic
+				return false;
+			}
 		}
+
 		if((s1._collisionGroup & s2._collisionMask) == 0 || (s2._collisionGroup & s1._collisionMask) == 0) {
 			return false;
 		}
