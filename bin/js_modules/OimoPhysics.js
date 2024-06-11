@@ -598,6 +598,9 @@ oimo.collision.broadphase.bvh.BvhBroadPhase = class oimo_collision_broadphase_bv
 		this.rayCastRecursive(node._children[1],_p1X,_p1Y,_p1Z,_p2X,_p2Y,_p2Z,callback);
 	}
 	convexCastRecursive(node,convex,begin,translation,callback) {
+		if (!node) {
+			return;
+		}
 		let v = this._aabb.min;
 		v.x = node._aabbMinX;
 		v.y = node._aabbMinY;
@@ -607,12 +610,11 @@ oimo.collision.broadphase.bvh.BvhBroadPhase = class oimo_collision_broadphase_bv
 		v1.y = node._aabbMaxY;
 		v1.z = node._aabbMaxZ;
 		this._convexSweep.init(convex,begin,translation);
+		if(node._proxy) {
+			callback.process(node._proxy);
+		}
 		let gjkEpa = oimo.collision.narrowphase.detector.gjkepa.GjkEpa.instance;
 		if(!(gjkEpa.computeClosestPointsImpl(this._convexSweep,this._aabb,begin,this.identity,null,false) == 0 && gjkEpa.distance <= 0)) {
-			return;
-		}
-		if(node._height == 0) {
-			callback.process(node._proxy);
 			return;
 		}
 		this.convexCastRecursive(node._children[0],convex,begin,translation,callback);
