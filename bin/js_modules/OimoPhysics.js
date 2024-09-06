@@ -23023,11 +23023,11 @@ oimo.dynamics.constraint.joint.Joint = class oimo_dynamics_constraint_joint_Join
 			maxImp = 0;
 			error = 0;
 		} else if(lower == upper) {
-			minImp = -1e65536;
-			maxImp = 1e65536;
+			minImp = -1;
+			maxImp = 1;
 			error = diff - lower;
 		} else if(diff < lower) {
-			minImp = -1e65536;
+			minImp = -1;
 			maxImp = 0;
 			error = diff - lower + slop;
 			if(error > 0) {
@@ -23035,7 +23035,7 @@ oimo.dynamics.constraint.joint.Joint = class oimo_dynamics_constraint_joint_Join
 			}
 		} else if(diff > upper) {
 			minImp = 0;
-			maxImp = 1e65536;
+			maxImp = 1;
 			error = diff - upper - slop;
 			if(error < 0) {
 				error = 0;
@@ -23101,11 +23101,11 @@ oimo.dynamics.constraint.joint.Joint = class oimo_dynamics_constraint_joint_Join
 			maxImp = 0;
 			error = 0;
 		} else if(lower == upper) {
-			minImp = -1e65536;
-			maxImp = 1e65536;
+			minImp = -1;
+			maxImp = 1;
 			error = diff - lower;
 		} else if(diff < lower) {
-			minImp = -1e65536;
+			minImp = -1;
 			maxImp = 0;
 			error = diff - lower + slop;
 			if(error > 0) {
@@ -23113,7 +23113,7 @@ oimo.dynamics.constraint.joint.Joint = class oimo_dynamics_constraint_joint_Join
 			}
 		} else if(diff > upper) {
 			minImp = 0;
-			maxImp = 1e65536;
+			maxImp = 1;
 			error = diff - upper - slop;
 			if(error < 0) {
 				error = 0;
@@ -31853,8 +31853,8 @@ oimo.dynamics.constraint.solver.pgs.PgsJointConstraintSolver = class oimo_dynami
 			let rv = 0;
 			rv += lv1X * j.lin1X + lv1Y * j.lin1Y + lv1Z * j.lin1Z;
 			rv -= lv2X * j.lin2X + lv2Y * j.lin2Y + lv2Z * j.lin2Z;
-			rv += av1X * j.ang1X + av1Y * j.ang1Y + av1Z * j.ang1Z;
-			rv -= av2X * j.ang2X + av2Y * j.ang2Y + av2Z * j.ang2Z;
+			rv += av1X * j.ang1X * this._b1._rotFactor.x + av1Y * j.ang1Y * this._b1._rotFactor.y + av1Z * j.ang1Z * this._b1._rotFactor.z;
+			rv -= av2X * j.ang2X * this._b2._rotFactor.x + av2Y * j.ang2Y * this._b2._rotFactor.y + av2Z * j.ang2Z * this._b2._rotFactor.z;
 			let impulseM = (-row.motorSpeed - rv) * md.massWithoutCfm;
 			let oldImpulseM = imp.impulseM;
 			imp.impulseM += impulseM;
@@ -31892,8 +31892,8 @@ oimo.dynamics.constraint.solver.pgs.PgsJointConstraintSolver = class oimo_dynami
 			let rv = 0;
 			rv += lv1X * j.lin1X + lv1Y * j.lin1Y + lv1Z * j.lin1Z;
 			rv -= lv2X * j.lin2X + lv2Y * j.lin2Y + lv2Z * j.lin2Z;
-			rv += av1X * j.ang1X + av1Y * j.ang1Y + av1Z * j.ang1Z;
-			rv -= av2X * j.ang2X + av2Y * j.ang2Y + av2Z * j.ang2Z;
+			rv += av1X * j.ang1X * this._b1._rotFactor.x + av1Y * j.ang1Y * this._b1._rotFactor.y + av1Z * j.ang1Z * this._b1._rotFactor.z;
+			rv -= av2X * j.ang2X * this._b2._rotFactor.x + av2Y * j.ang2Y * this._b2._rotFactor.y + av2Z * j.ang2Z * this._b2._rotFactor.z;
 			let impulse = (row.rhs - rv - imp.impulse * row.cfm) * md.mass;
 			let oldImpulse = imp.impulse;
 			imp.impulse += impulse;
@@ -32237,8 +32237,8 @@ oimo.dynamics.constraint.solver.pgs.PgsJointConstraintSolver = class oimo_dynami
 			let rv = 0;
 			rv += lv1X * j.lin1X + lv1Y * j.lin1Y + lv1Z * j.lin1Z;
 			rv -= lv2X * j.lin2X + lv2Y * j.lin2Y + lv2Z * j.lin2Z;
-			rv += av1X * j.ang1X + av1Y * j.ang1Y + av1Z * j.ang1Z;
-			rv -= av2X * j.ang2X + av2Y * j.ang2Y + av2Z * j.ang2Z;
+			rv += av1X * j.ang1X * this._b1._rotFactor.x + av1Y * j.ang1Y * this._b1._rotFactor.y + av1Z * j.ang1Z * this._b1._rotFactor.z;
+			rv -= av2X * j.ang2X * this._b2._rotFactor.x + av2Y * j.ang2Y * this._b2._rotFactor.y + av2Z * j.ang2Z * this._b2._rotFactor.z;
 			let impulseP = (row.rhs * oimo.common.Setting.positionNgsBaumgarte - rv) * md.mass;
 			let oldImpulseP = imp.impulseP;
 			imp.impulseP += impulseP;
