@@ -21040,7 +21040,8 @@ oimo.dynamics.constraint.contact.ContactConstraint = class oimo_dynamics_constra
 		binormalY = this._manifold._binormalY;
 		binormalZ = this._manifold._binormalZ;
 		let usedFriction = 0;
-		switch (this._s1.userData.frictionCombine) {
+		const frictionCombine = this._s1.userData.frictionCombine !== 0 ? this._s1.userData.frictionCombine : this._s2.userData.frictionCombine;
+		switch (frictionCombine) {
 			case 0:
 				usedFriction = (this._s1._friction + this._s2._friction) / 2;
 				break;
@@ -21055,7 +21056,8 @@ oimo.dynamics.constraint.contact.ContactConstraint = class oimo_dynamics_constra
 				break;
 		}
 		let usedRestitution = 0;
-		switch (this._s1.userData.restitutionCombine) {
+		const restitutionCombine = this._s1.userData.restitutionCombine !== 0 ? this._s1.userData.restitutionCombine : this._s2.userData.restitutionCombine;
+		switch (restitutionCombine) {
 			case 0:
 				usedRestitution = (this._s1._restitution + this._s2._restitution) / 2;
 				break;
@@ -21069,8 +21071,8 @@ oimo.dynamics.constraint.contact.ContactConstraint = class oimo_dynamics_constra
 				usedRestitution = this._s1._restitution > this._s2._restitution ? this._s1._restitution : this._s2._restitution;
 				break;
 		}
-		let friction = Math.sqrt(usedFriction);
-		let restitution = Math.sqrt(usedRestitution);
+		let friction = Math.sqrt(usedFriction * usedFriction);
+		let restitution = Math.sqrt(usedRestitution * usedRestitution);
 		let num = this._manifold._numPoints;
 		info.numRows = 0;
 		let _g = 0;
