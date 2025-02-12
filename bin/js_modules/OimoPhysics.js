@@ -21071,8 +21071,8 @@ oimo.dynamics.constraint.contact.ContactConstraint = class oimo_dynamics_constra
 				usedRestitution = this._s1._restitution > this._s2._restitution ? this._s1._restitution : this._s2._restitution;
 				break;
 		}
-		let friction = Math.sqrt(usedFriction * usedFriction);
-		let restitution = Math.sqrt(usedRestitution * usedRestitution);
+		let friction = Math.sqrt(usedFriction);
+		let restitution = Math.sqrt(usedRestitution);
 		let num = this._manifold._numPoints;
 		info.numRows = 0;
 		let _g = 0;
