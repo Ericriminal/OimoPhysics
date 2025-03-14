@@ -15431,7 +15431,7 @@ oimo.dynamics.ContactManager = class oimo_dynamics_ContactManager {
 				let s2 = c._s2;
 				let r1 = s1._rigidBody;
 				let r2 = s2._rigidBody;
-				if(!(!r1._sleeping && r1._type != 1) && !(!r2._sleeping && r2._type != 1)) {
+				if(!(!r1._sleeping || r1._type != 1) && !(!r2._sleeping || r2._type != 1)) {
 					c._shouldBeSkipped = true;
 					break;
 				}
