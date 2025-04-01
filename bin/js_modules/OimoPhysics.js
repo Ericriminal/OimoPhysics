@@ -15539,7 +15539,7 @@ oimo.dynamics.ContactManager = class oimo_dynamics_ContactManager {
 		if(r1 === r2 || r1._type === 1 && r2._type === 1) {
 			return false;
 		}
-		if(!s1.userData.colliderComp?.isTrigger && !s2.userData.colliderComp?.isTrigger) {
+		if(!s1.userData.isTrigger && !s2.userData.isTrigger) {
 			if(r1._type != 0 && r2._type != 0) {
 				return false;
 			}
