@@ -21017,6 +21017,7 @@ oimo.dynamics.constraint.contact.ContactConstraint = class oimo_dynamics_constra
 	constructor(manifold) {
 		this._solver = new oimo.dynamics.constraint.solver.pgs.PgsContactConstraintSolver(this);
 		this._manifold = manifold;
+		this.combinePriority = [0, 2, 1, 3];
 	}
 	_getVelocitySolverInfo(timeStep,info) {
 		info.b1 = this._b1;
@@ -21040,32 +21041,33 @@ oimo.dynamics.constraint.contact.ContactConstraint = class oimo_dynamics_constra
 		binormalY = this._manifold._binormalY;
 		binormalZ = this._manifold._binormalZ;
 		let usedFriction = 0;
-		const frictionCombine = this._s1.userData.frictionCombine !== 0 ? this._s1.userData.frictionCombine : this._s2.userData.frictionCombine;
+		const frictionCombine = Math.max(this.combinePriority.indexOf(this._s1.userData.frictionCombine), this.combinePriority.indexOf(this._s2.userData.frictionCombine));
+
 		switch (frictionCombine) {
-			case 0:
+			case 0: // Average
 				usedFriction = (this._s1._friction + this._s2._friction) / 2;
 				break;
-			case 1:
-				usedFriction = this._s1._friction < this._s2._friction ? this._s1._friction : this._s2._friction;
-				break;
-			case 2:
+			case 1: // Multiply
 				usedFriction = this._s1._friction * this._s2._friction;
 				break;
-			case 3:
+			case 2: // Minimum
+				usedFriction = this._s1._friction < this._s2._friction ? this._s1._friction : this._s2._friction;
+				break;
+			case 3: // Maximum
 				usedFriction = this._s1._friction > this._s2._friction ? this._s1._friction : this._s2._friction;
 				break;
 		}
 		let usedRestitution = 0;
-		const restitutionCombine = this._s1.userData.restitutionCombine !== 0 ? this._s1.userData.restitutionCombine : this._s2.userData.restitutionCombine;
+		const restitutionCombine = Math.max(this.combinePriority.indexOf(this._s1.userData.restitutionCombine), this.combinePriority.indexOf(this._s2.userData.restitutionCombine));
 		switch (restitutionCombine) {
 			case 0:
 				usedRestitution = (this._s1._restitution + this._s2._restitution) / 2;
 				break;
 			case 1:
-				usedRestitution = this._s1._restitution < this._s2._restitution ? this._s1._restitution : this._s2._restitution;
+				usedRestitution = this._s1._restitution * this._s2._restitution;
 				break;
 			case 2:
-				usedRestitution = this._s1._restitution * this._s2._restitution;
+				usedRestitution = this._s1._restitution < this._s2._restitution ? this._s1._restitution : this._s2._restitution;
 				break;
 			case 3:
 				usedRestitution = this._s1._restitution > this._s2._restitution ? this._s1._restitution : this._s2._restitution;
