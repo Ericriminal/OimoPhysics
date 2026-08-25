@@ -29376,6 +29376,12 @@ oimo.dynamics.constraint.solver.direct.DirectJointConstraintSolver = class oimo_
 				}
 				if(angularSet) {
 					let _this = this._b1;
+					if(this._b1._rotFactor.x == 0) av1X = 0;
+					if(this._b1._rotFactor.y == 0) av1Y = 0;
+					if(this._b1._rotFactor.z == 0) av1Z = 0;
+					if(this._b2._rotFactor.x == 0) av2X = 0;
+					if(this._b2._rotFactor.y == 0) av2Y = 0;
+					if(this._b2._rotFactor.z == 0) av2Z = 0;
 					let theta = Math.sqrt(av1X * av1X + av1Y * av1Y + av1Z * av1Z);
 					let halfTheta = theta * 0.5;
 					let rotationToSinAxisFactor;
@@ -31226,6 +31232,12 @@ oimo.dynamics.constraint.solver.pgs.PgsContactConstraintSolver = class oimo_dyna
 		_this1._transform._positionY += lv2Y;
 		_this1._transform._positionZ += lv2Z;
 		let _this2 = this._b1;
+		if(this._b1._rotFactor.x == 0) av1X = 0;
+		if(this._b1._rotFactor.y == 0) av1Y = 0;
+		if(this._b1._rotFactor.z == 0) av1Z = 0;
+		if(this._b2._rotFactor.x == 0) av2X = 0;
+		if(this._b2._rotFactor.y == 0) av2Y = 0;
+		if(this._b2._rotFactor.z == 0) av2Z = 0;
 		let theta = Math.sqrt(av1X * av1X + av1Y * av1Y + av1Z * av1Z);
 		let halfTheta = theta * 0.5;
 		let rotationToSinAxisFactor;
@@ -32304,6 +32316,12 @@ oimo.dynamics.constraint.solver.pgs.PgsJointConstraintSolver = class oimo_dynami
 		_this1._transform._positionY += lv2Y;
 		_this1._transform._positionZ += lv2Z;
 		let _this2 = this._b1;
+		if(this._b1._rotFactor.x == 0) av1X = 0;
+		if(this._b1._rotFactor.y == 0) av1Y = 0;
+		if(this._b1._rotFactor.z == 0) av1Z = 0;
+		if(this._b2._rotFactor.x == 0) av2X = 0;
+		if(this._b2._rotFactor.y == 0) av2Y = 0;
+		if(this._b2._rotFactor.z == 0) av2Z = 0;
 		let theta = Math.sqrt(av1X * av1X + av1Y * av1Y + av1Z * av1Z);
 		let halfTheta = theta * 0.5;
 		let rotationToSinAxisFactor;
@@ -32805,12 +32823,18 @@ oimo.dynamics.rigidbody.RigidBody = class oimo_dynamics_rigidbody_RigidBody {
 			let rotationX;
 			let rotationY;
 			let rotationZ;
+			if(this._rotFactor.x == 0) this._angVelX = 0;
+			if(this._rotFactor.y == 0) this._angVelY = 0;
+			if(this._rotFactor.z == 0) this._angVelZ = 0;
 			translationX = this._velX * dt;
 			translationY = this._velY * dt;
 			translationZ = this._velZ * dt;
 			rotationX = this._angVelX * dt;
 			rotationY = this._angVelY * dt;
 			rotationZ = this._angVelZ * dt;
+			if(this._rotFactor.x == 0) rotationX = 0;
+			if(this._rotFactor.y == 0) rotationY = 0;
+			if(this._rotFactor.z == 0) rotationZ = 0;
 			let translationLengthSq = translationX * translationX + translationY * translationY + translationZ * translationZ;
 			let rotationLengthSq = rotationX * rotationX + rotationY * rotationY + rotationZ * rotationZ;
 			if(translationLengthSq == 0 && rotationLengthSq == 0) {
@@ -33039,6 +33063,9 @@ oimo.dynamics.rigidbody.RigidBody = class oimo_dynamics_rigidbody_RigidBody {
 			rotationX = this._angPseudoVelX;
 			rotationY = this._angPseudoVelY;
 			rotationZ = this._angPseudoVelZ;
+			if(this._rotFactor.x == 0) rotationX = 0;
+			if(this._rotFactor.y == 0) rotationY = 0;
+			if(this._rotFactor.z == 0) rotationZ = 0;
 			this._pseudoVelX = 0;
 			this._pseudoVelY = 0;
 			this._pseudoVelZ = 0;
@@ -35568,6 +35595,9 @@ oimo.dynamics.rigidbody.RigidBody = class oimo_dynamics_rigidbody_RigidBody {
 		_this.x = rotationFactor.x;
 		_this.y = rotationFactor.y;
 		_this.z = rotationFactor.z;
+		if(_this.x == 0) this._angVelX = 0;
+		if(_this.y == 0) this._angVelY = 0;
+		if(_this.z == 0) this._angVelZ = 0;
 		let __tmp__00;
 		let __tmp__01;
 		let __tmp__02;
@@ -35677,9 +35707,9 @@ oimo.dynamics.rigidbody.RigidBody = class oimo_dynamics_rigidbody_RigidBody {
 			this._angVelY = 0;
 			this._angVelZ = 0;
 		} else {
-			this._angVelX = angularVelocity.x;
-			this._angVelY = angularVelocity.y;
-			this._angVelZ = angularVelocity.z;
+			this._angVelX = this._rotFactor.x == 0 ? 0 : angularVelocity.x;
+			this._angVelY = this._rotFactor.y == 0 ? 0 : angularVelocity.y;
+			this._angVelZ = this._rotFactor.z == 0 ? 0 : angularVelocity.z;
 		}
 		this._sleeping = false;
 		this._sleepTime = 0;
@@ -35704,9 +35734,9 @@ oimo.dynamics.rigidbody.RigidBody = class oimo_dynamics_rigidbody_RigidBody {
 			let dX;
 			let dY;
 			let dZ;
-			dX = angularVelocityChange.x;
-			dY = angularVelocityChange.y;
-			dZ = angularVelocityChange.z;
+			dX = this._rotFactor.x == 0 ? 0 : angularVelocityChange.x;
+			dY = this._rotFactor.y == 0 ? 0 : angularVelocityChange.y;
+			dZ = this._rotFactor.z == 0 ? 0 : angularVelocityChange.z;
 			this._angVelX += dX;
 			this._angVelY += dY;
 			this._angVelZ += dZ;
