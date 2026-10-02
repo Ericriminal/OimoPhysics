@@ -3578,6 +3578,11 @@ oimo.collision.narrowphase.CollisionMatrix = class oimo_collision_narrowphase_Co
 		this.detectors[5][3] = gjkEpaDetector;
 		this.detectors[5][4] = gjkEpaDetector;
 		this.detectors[5][5] = gjkEpaDetector;
+		// A mesh pair owns independent triangle manifolds, not one GJK manifold.
+		this.detectors[6] = new Array(8);
+		for(let i = 0; i < 6; i++) {
+			this.detectors[i][6] = this.detectors[6][i] = null;
+		}
 	}
 	getDetector(geomType1,geomType2) {
 		return this.detectors[geomType1][geomType2];
@@ -15107,6 +15112,10 @@ oimo.dynamics.Contact = class oimo_dynamics_Contact {
 		this._touching = false;
 	}
 	_updateManifold() {
+		if(this._s1._geom._type === 6 || this._s2._geom._type === 6) {
+			this._updateMeshManifolds();
+			return;
+		}
 		if(this._detector == null) {
 			return;
 		}
@@ -15534,6 +15543,7 @@ oimo.dynamics.ContactManager = class oimo_dynamics_ContactManager {
 		}
 	}
 	shouldCollide(s1,s2) {
+		if(s1._geom._type === 6 && s2._geom._type === 6) return false;
 		let r1 = s1._rigidBody;
 		let r2 = s2._rigidBody;
 		if(r1 === r2 || r1._type === 1 && r2._type === 1) {
@@ -16255,8 +16265,12 @@ oimo.dynamics.World = class oimo_dynamics_World {
 			let cl = rb._contactLinkList;
 			while(cl != null) {
 				let n = cl._next;
-				let cc = cl._contact._contactConstraint;
-				let ccs = cl._contact._contactConstraint._solver;
+				const meshState = cl._contact._cachedDetectorData._meshState;
+				const contactCount = meshState == null ? 1 : meshState.active.length;
+				for(let contactIndex = 0; contactIndex < contactCount; contactIndex++) {
+				const contact = meshState == null ? cl._contact : meshState.active[contactIndex];
+				let cc = contact._contactConstraint;
+				let ccs = cc._solver;
 				if(cc.isTouching() && !ccs._addedToIsland) {
 					if(this._solversInIslands.length == this._numSolversInIslands) {
 						let newArray = new Array(this._numSolversInIslands << 1);
@@ -16276,6 +16290,7 @@ oimo.dynamics.World = class oimo_dynamics_World {
 						this._island._addRigidBody(other);
 						this._rigidBodyStack[stackCount++] = other;
 					}
+				}
 				}
 				cl = n;
 			}
@@ -37149,4 +37164,545 @@ oimo.dynamics.rigidbody.RigidBodyType._KINEMATIC = 2;
 oimo.dynamics.rigidbody.RigidBodyType.DYNAMIC = 0;
 oimo.dynamics.rigidbody.RigidBodyType.STATIC = 1;
 oimo.dynamics.rigidbody.RigidBodyType.KINEMATIC = 2;
+// MP extension: concave triangle meshes. Keep this implementation in the distributed
+// JS module: regenerating it from Haxe would overwrite this intentionally JS-only API.
+// Meshes are immutable, static/kinematic surfaces; winding defines the front face.
+// Refit bounds for immediate queries without consuming pending collision pairs.
+oimo.dynamics.World.prototype.synchronizeShape = function(shape) {
+	if(shape._rigidBody == null || shape._rigidBody._world !== this || shape._proxy == null) return;
+	shape._geom._computeAabb(shape._aabb, shape._transform);
+	this._broadPhase.moveProxy(shape._proxy, shape._aabb, null);
+	let node = shape._proxy._leaf;
+	if(node == null) return; // Brute force queries read the proxy directly.
+	const p = shape._proxy;
+	node._aabbMinX = p._aabbMinX; node._aabbMinY = p._aabbMinY; node._aabbMinZ = p._aabbMinZ;
+	node._aabbMaxX = p._aabbMaxX; node._aabbMaxY = p._aabbMaxY; node._aabbMaxZ = p._aabbMaxZ;
+	while((node = node._parent) != null) {
+		const a = node._children[0], b = node._children[1];
+		node._aabbMinX = Math.min(a._aabbMinX,b._aabbMinX); node._aabbMinY = Math.min(a._aabbMinY,b._aabbMinY); node._aabbMinZ = Math.min(a._aabbMinZ,b._aabbMinZ);
+		node._aabbMaxX = Math.max(a._aabbMaxX,b._aabbMaxX); node._aabbMaxY = Math.max(a._aabbMaxY,b._aabbMaxY); node._aabbMaxZ = Math.max(a._aabbMaxZ,b._aabbMaxZ);
+	}
+};
+oimo.collision.geometry.GeometryType.TRIANGLE_MESH = 6;
+oimo.collision.geometry.GeometryType._TRIANGLE_MESH = 6;
+oimo.collision.geometry.TriangleMeshGeometry = class extends oimo.collision.geometry.Geometry {
+	constructor(vertices, indices = null, options = {}) {
+		super(6);
+		const vectors = vertices.length > 0 && typeof vertices[0] === 'object';
+		const length = vectors ? vertices.length * 3 : vertices.length;
+		if(length === 0 || length % 3 !== 0) throw new Error('TriangleMeshGeometry: invalid vertices.');
+		this._vertices = new Float64Array(length);
+		for(let i = 0; i < length; i++) {
+			const value = vectors ? vertices[(i / 3) | 0][['x','y','z'][i % 3]] : vertices[i];
+			if(!Number.isFinite(value)) throw new Error('TriangleMeshGeometry: non-finite vertex.');
+			this._vertices[i] = value;
+		}
+		const count = indices == null ? length / 3 : indices.length;
+		if(count % 3 !== 0) throw new Error('TriangleMeshGeometry: indices must describe triangles.');
+		this._indices = new Uint32Array(count);
+		for(let i = 0; i < count; i++) {
+			const index = indices == null ? i : indices[i];
+			if(!Number.isInteger(index) || index < 0 || index >= length / 3) throw new Error('TriangleMeshGeometry: index out of range.');
+			this._indices[i] = index;
+		}
+		this._doubleSided = options.doubleSided === true;
+		this._margin = options.contactMargin == null ? 1e-5 : options.contactMargin;
+		if(!Number.isFinite(this._margin) || this._margin <= 0) throw new Error('TriangleMeshGeometry: contactMargin must be positive.');
+		this._normals = new Float64Array(count);
+		this._internalEdges = new Uint8Array(count / 3);
+		this._order = [];
+		this._bounds = new Float64Array(count * 2);
+		const edges = new Map();
+		const v = this._vertices, ix = this._indices;
+		for(let t = 0; t < count / 3; t++) {
+			const a = ix[t * 3] * 3, b = ix[t * 3 + 1] * 3, c = ix[t * 3 + 2] * 3;
+			const ux = v[b]-v[a], uy = v[b+1]-v[a+1], uz = v[b+2]-v[a+2];
+			const vx = v[c]-v[a], vy = v[c+1]-v[a+1], vz = v[c+2]-v[a+2];
+			const nx = uy*vz-uz*vy, ny = uz*vx-ux*vz, nz = ux*vy-uy*vx;
+			const n = Math.hypot(nx,ny,nz);
+			if(n === 0) continue; // Degenerate faces have no surface or ray hits.
+			this._normals[t*3] = nx/n; this._normals[t*3+1] = ny/n; this._normals[t*3+2] = nz/n;
+			this._order.push(t);
+			for(let k = 0; k < 3; k++) {
+				this._bounds[t*6+k] = Math.min(v[a+k],v[b+k],v[c+k]);
+				this._bounds[t*6+k+3] = Math.max(v[a+k],v[b+k],v[c+k]);
+				const i = ix[t*3+k]*3, j = ix[t*3+(k+1)%3]*3;
+				const p = `${v[i]},${v[i+1]},${v[i+2]}`, q = `${v[j]},${v[j+1]},${v[j+2]}`;
+				const key = p < q ? p+'|'+q : q+'|'+p;
+				let list = edges.get(key);
+				if(list == null) { list = []; edges.set(key,list); }
+				list.push(t*3+k);
+			}
+		}
+		for(const list of edges.values()) {
+			if(list.length !== 2) continue;
+			const a = ((list[0]/3)|0)*3, b = ((list[1]/3)|0)*3, n = this._normals;
+			if(n[a]*n[b]+n[a+1]*n[b+1]+n[a+2]*n[b+2] > 1-1e-8) {
+				this._internalEdges[a/3] |= 1 << list[0]%3;
+				this._internalEdges[b/3] |= 1 << list[1]%3;
+			}
+		}
+		this._nodes = [];
+		if(this._order.length === 0) {
+			// A mesh collapsed by zero scale is an inert surface, not an exception.
+			this._nodes.push({minX:v[0],minY:v[1],minZ:v[2],maxX:v[0],maxY:v[1],maxZ:v[2],start:0,end:0,left:-1,right:-1});
+		} else this._buildTree(0,this._order.length);
+		this._stack = new Int32Array(this._nodes.length);
+		this._candidates = new Uint32Array(this._order.length);
+		this._lastQueryTriangleCount = 0;
+		this._updateMass();
+	}
+	_updateMass() {
+		this._volume = 0;
+		this._inertiaCoeff00 = this._inertiaCoeff01 = this._inertiaCoeff02 = 0;
+		this._inertiaCoeff10 = this._inertiaCoeff11 = this._inertiaCoeff12 = 0;
+		this._inertiaCoeff20 = this._inertiaCoeff21 = this._inertiaCoeff22 = 0;
+	}
+	getNumTriangles() { return this._order.length; }
+	overlapsConvex(convex, convexTransform, meshTransform) {
+		if(this._overlapTriangle == null) {
+			this._overlapTriangle = new oimo.collision.geometry._MeshTriangleGeometry();
+			this._overlapAabb = new oimo.collision.geometry.Aabb();
+		}
+		convex._computeAabb(this._overlapAabb, convexTransform);
+		const count = this._queryWorldAabb(this._overlapAabb, meshTransform);
+		for(let i = 0; i < count; i++) {
+			this._overlapTriangle.setTriangle(this, this._candidates[i]);
+			// Overlap needs distance only: a sphere core exactly on the face has
+			// coincident closest points and therefore no usable contact normal.
+			const gjk = oimo.collision.narrowphase.detector.gjkepa.GjkEpa.instance;
+			const status = gjk.computeClosestPointsImpl(convex, this._overlapTriangle, convexTransform, meshTransform, null, true);
+			if(status === 0 && gjk.distance <= convex._gjkMargin + this._margin) return true;
+		}
+		return false;
+	}
+	_buildTree(start,end) {
+		const node = {minX:Infinity,minY:Infinity,minZ:Infinity,maxX:-Infinity,maxY:-Infinity,maxZ:-Infinity,start,end,left:-1,right:-1};
+		const id = this._nodes.length;
+		this._nodes.push(node);
+		for(let i = start; i < end; i++) {
+			const b = this._order[i]*6, v = this._bounds;
+			node.minX = Math.min(node.minX,v[b]); node.minY = Math.min(node.minY,v[b+1]); node.minZ = Math.min(node.minZ,v[b+2]);
+			node.maxX = Math.max(node.maxX,v[b+3]); node.maxY = Math.max(node.maxY,v[b+4]); node.maxZ = Math.max(node.maxZ,v[b+5]);
+		}
+		if(end-start > 8) {
+			const sizes = [node.maxX-node.minX,node.maxY-node.minY,node.maxZ-node.minZ];
+			const axis = sizes[0] >= sizes[1] && sizes[0] >= sizes[2] ? 0 : sizes[1] >= sizes[2] ? 1 : 2;
+			const order = this._order.slice(start,end).sort((a,b) => this._bounds[a*6+axis]+this._bounds[a*6+axis+3]-this._bounds[b*6+axis]-this._bounds[b*6+axis+3]);
+			for(let i = 0; i < order.length; i++) this._order[start+i] = order[i];
+			const mid = (start+end) >>> 1;
+			node.left = this._buildTree(start,mid); node.right = this._buildTree(mid,end);
+		}
+		return id;
+	}
+	_query(minX,minY,minZ,maxX,maxY,maxZ) {
+		let top = 0, count = 0;
+		this._stack[top++] = 0;
+		this._lastQueryTriangleCount = 0;
+		while(top > 0) {
+			const n = this._nodes[this._stack[--top]], m = this._margin;
+			if(n.minX-m > maxX || n.minY-m > maxY || n.minZ-m > maxZ || n.maxX+m < minX || n.maxY+m < minY || n.maxZ+m < minZ) continue;
+			if(n.left >= 0) { this._stack[top++] = n.left; this._stack[top++] = n.right; continue; }
+			for(let i = n.start; i < n.end; i++) {
+				const t = this._order[i], b = t*6, v = this._bounds;
+				this._lastQueryTriangleCount++;
+				if(v[b]-m <= maxX && v[b+1]-m <= maxY && v[b+2]-m <= maxZ && v[b+3]+m >= minX && v[b+4]+m >= minY && v[b+5]+m >= minZ) this._candidates[count++] = t;
+			}
+		}
+		return count;
+	}
+	_queryWorldAabb(a,tf) {
+		const x = (a._minX+a._maxX)*0.5-tf._positionX, y = (a._minY+a._maxY)*0.5-tf._positionY, z = (a._minZ+a._maxZ)*0.5-tf._positionZ;
+		const ex = (a._maxX-a._minX)*0.5, ey = (a._maxY-a._minY)*0.5, ez = (a._maxZ-a._minZ)*0.5;
+		const cx = tf._rotation00*x+tf._rotation10*y+tf._rotation20*z, cy = tf._rotation01*x+tf._rotation11*y+tf._rotation21*z, cz = tf._rotation02*x+tf._rotation12*y+tf._rotation22*z;
+		const hx = Math.abs(tf._rotation00)*ex+Math.abs(tf._rotation10)*ey+Math.abs(tf._rotation20)*ez;
+		const hy = Math.abs(tf._rotation01)*ex+Math.abs(tf._rotation11)*ey+Math.abs(tf._rotation21)*ez;
+		const hz = Math.abs(tf._rotation02)*ex+Math.abs(tf._rotation12)*ey+Math.abs(tf._rotation22)*ez;
+		return this._query(cx-hx,cy-hy,cz-hz,cx+hx,cy+hy,cz+hz);
+	}
+	_computeAabb(a,tf) {
+		const n = this._nodes[0], x = (n.minX+n.maxX)*0.5, y = (n.minY+n.maxY)*0.5, z = (n.minZ+n.maxZ)*0.5;
+		const ex = (n.maxX-n.minX)*0.5, ey = (n.maxY-n.minY)*0.5, ez = (n.maxZ-n.minZ)*0.5, m = this._margin;
+		const cx = tf._rotation00*x+tf._rotation01*y+tf._rotation02*z+tf._positionX;
+		const cy = tf._rotation10*x+tf._rotation11*y+tf._rotation12*z+tf._positionY;
+		const cz = tf._rotation20*x+tf._rotation21*y+tf._rotation22*z+tf._positionZ;
+		const hx = Math.abs(tf._rotation00)*ex+Math.abs(tf._rotation01)*ey+Math.abs(tf._rotation02)*ez+m;
+		const hy = Math.abs(tf._rotation10)*ex+Math.abs(tf._rotation11)*ey+Math.abs(tf._rotation12)*ez+m;
+		const hz = Math.abs(tf._rotation20)*ex+Math.abs(tf._rotation21)*ey+Math.abs(tf._rotation22)*ez+m;
+		a._minX = cx-hx; a._minY = cy-hy; a._minZ = cz-hz; a._maxX = cx+hx; a._maxY = cy+hy; a._maxZ = cz+hz;
+	}
+	_rayCastLocal(bx,by,bz,ex,ey,ez,hit) {
+		const dx = ex-bx, dy = ey-by, dz = ez-bz, v = this._vertices, ix = this._indices;
+		const count = this._query(Math.min(bx,ex),Math.min(by,ey),Math.min(bz,ez),Math.max(bx,ex),Math.max(by,ey),Math.max(bz,ez));
+		let best = Infinity, triangle = -1;
+		for(let i = 0; i < count; i++) {
+			const t = this._candidates[i], a = ix[t*3]*3, b = ix[t*3+1]*3, c = ix[t*3+2]*3;
+			const ux = v[b]-v[a], uy = v[b+1]-v[a+1], uz = v[b+2]-v[a+2], vx = v[c]-v[a], vy = v[c+1]-v[a+1], vz = v[c+2]-v[a+2];
+			const px = dy*vz-dz*vy, py = dz*vx-dx*vz, pz = dx*vy-dy*vx, det = ux*px+uy*py+uz*pz;
+			if(this._doubleSided ? Math.abs(det) < 1e-12 : det < 1e-12) continue;
+			const tx = bx-v[a], ty = by-v[a+1], tz = bz-v[a+2], u = (tx*px+ty*py+tz*pz)/det;
+			if(u < -1e-10 || u > 1+1e-10) continue;
+			const qx = ty*uz-tz*uy, qy = tz*ux-tx*uz, qz = tx*uy-ty*ux, w = (dx*qx+dy*qy+dz*qz)/det;
+			if(w < -1e-10 || u+w > 1+1e-10) continue;
+			const f = (vx*qx+vy*qy+vz*qz)/det;
+			if(f >= 0 && f <= 1 && f < best) { best = f; triangle = t; }
+		}
+		if(triangle < 0) return false;
+		hit.fraction = best; hit.triangleIndex = triangle;
+		hit.position.init(bx+dx*best,by+dy*best,bz+dz*best);
+		const n = this._normals, t = triangle*3, sign = n[t]*dx+n[t+1]*dy+n[t+2]*dz > 0 ? -1 : 1;
+		hit.normal.init(n[t]*sign,n[t+1]*sign,n[t+2]*sign);
+		return true;
+	}
+};
+
+// A reusable thin prism gives GJK/EPA a full-dimensional core. Its front face is
+// exactly the triangle; the tiny thickness extends behind it, never fills a hole.
+oimo.collision.geometry._MeshTriangleGeometry = class extends oimo.collision.geometry.ConvexGeometry {
+	constructor() {
+		super(5);
+		this._vertices = Array.from({length:6},() => new oimo.common.Vec3());
+		this._numVertices = 6;
+		this._gjkMargin = 0;
+	}
+	setTriangle(mesh,t) {
+		const v = mesh._vertices, ix = mesh._indices, n = mesh._normals, m = mesh._margin;
+		this._gjkMargin = m;
+		for(let k = 0; k < 3; k++) {
+			const j = ix[t*3+k]*3;
+			this._vertices[k].init(v[j],v[j+1],v[j+2]);
+			this._vertices[k+3].init(v[j]-n[t*3]*m,v[j+1]-n[t*3+1]*m,v[j+2]-n[t*3+2]*m);
+		}
+	}
+	computeLocalSupportingVertex(dir,out) {
+		let best = -Infinity, index = 0;
+		for(let i = 0; i < 6; i++) {
+			const v = this._vertices[i], d = v.x*dir.x+v.y*dir.y+v.z*dir.z;
+			if(d > best) { best = d; index = i; }
+		}
+		out.copyFrom(this._vertices[index]);
+	}
+};
+
+oimo.collision.narrowphase.detector._MeshTriangleDetector = class extends oimo.collision.narrowphase.detector.Detector {
+	constructor(triangle,swapped) {
+		super(swapped); // detectImpl always receives convex first, mesh second.
+		this.triangle = triangle;
+		this._triangle = new oimo.collision.geometry._MeshTriangleGeometry();
+		this._gjk = new oimo.collision.narrowphase.detector.GjkEpaDetector();
+		this._result = new oimo.collision.narrowphase.DetectorResult();
+		this._normal = new oimo.common.Vec3();
+		this._polygonA = new Float64Array(48);
+		this._polygonB = new Float64Array(48);
+		this._worldVertices = new Float64Array(9);
+		this._convexAabb = new oimo.collision.geometry.Aabb();
+	}
+	detectImpl(result,convex,mesh,ctf,mtf,cachedData) {
+		const t = this.triangle, v = mesh._vertices, ix = mesh._indices, n = mesh._normals;
+		if(t*3 >= ix.length) return;
+		this._triangle.setTriangle(mesh,t);
+		const nx = mtf._rotation00*n[t*3]+mtf._rotation01*n[t*3+1]+mtf._rotation02*n[t*3+2];
+		const ny = mtf._rotation10*n[t*3]+mtf._rotation11*n[t*3+1]+mtf._rotation12*n[t*3+2];
+		const nz = mtf._rotation20*n[t*3]+mtf._rotation21*n[t*3+1]+mtf._rotation22*n[t*3+2];
+		const w = this._worldVertices;
+		for(let k = 0; k < 3; k++) {
+			const a = ix[t*3+k]*3, x = v[a], y = v[a+1], z = v[a+2];
+			w[k*3] = mtf._rotation00*x+mtf._rotation01*y+mtf._rotation02*z+mtf._positionX;
+			w[k*3+1] = mtf._rotation10*x+mtf._rotation11*y+mtf._rotation12*z+mtf._positionY;
+			w[k*3+2] = mtf._rotation20*x+mtf._rotation21*y+mtf._rotation22*z+mtf._positionZ;
+		}
+		// Hull vertices may be offset from the shape pivot. Use the geometry's
+		// current bounds, not that pivot, to classify its side of the surface.
+		const bounds = this._convexAabb;
+		convex._computeAabb(bounds,ctf);
+		const side = ((bounds._minX+bounds._maxX)*0.5-w[0])*nx+((bounds._minY+bounds._maxY)*0.5-w[1])*ny+((bounds._minZ+bounds._maxZ)*0.5-w[2])*nz;
+		if(!mesh._doubleSided && side < -mesh._margin) return;
+		const sign = mesh._doubleSided && side < 0 ? -1 : 1;
+		this._normal.init(nx*sign,ny*sign,nz*sign);
+		result.incremental = false;
+		const r = this._result;
+		this._gjk.detect(r,convex,this._triangle,ctf,mtf,cachedData);
+		if(r.numPoints === 0) return;
+		// A projected support face alone is not proof of intersection: a small
+		// triangle can lie entirely beyond a rotated box. Gate patches by GJK.
+		if(convex._type === 1 && this._boxContacts(result,convex,ctf,mesh._margin)) return;
+		if(convex._type === 5 && this._hullContacts(result,convex,ctf)) return;
+		const p = r.points[0];
+		let rx = r.normal.x, ry = r.normal.y, rz = r.normal.z;
+		// GJK edge normals on welded coplanar edges are not physical boundaries.
+		// Suppress them; the adjacent face supplies the actual surface contact.
+		if(mesh._internalEdges[t] !== 0 && rx*this._normal.x+ry*this._normal.y+rz*this._normal.z < 1-1e-6) {
+			for(let edge = 0; edge < 3; edge++) {
+				if((mesh._internalEdges[t] & (1<<edge)) === 0) continue;
+				const a = edge*3, b = ((edge+1)%3)*3;
+				const ex = w[b]-w[a], ey = w[b+1]-w[a+1], ez = w[b+2]-w[a+2];
+				const px = p.position2.x-w[a], py = p.position2.y-w[a+1], pz = p.position2.z-w[a+2];
+				const f = Math.max(0,Math.min(1,(px*ex+py*ey+pz*ez)/(ex*ex+ey*ey+ez*ez)));
+				if(Math.hypot(px-ex*f,py-ey*f,pz-ez*f) <= mesh._margin*4) return;
+			}
+		}
+		if(rx*this._normal.x+ry*this._normal.y+rz*this._normal.z < -1e-6) return;
+		this.setNormal(result,rx,ry,rz);
+		this.addPoint(result,p.position1.x,p.position1.y,p.position1.z,p.position2.x,p.position2.y,p.position2.z,p.depth,0);
+	}
+	_hullContacts(result,hull,tf) {
+		const n = this._normal, w = this._worldVertices;
+		const ux = w[3]-w[0], uy = w[4]-w[1], uz = w[5]-w[2];
+		const vx = w[6]-w[0], vy = w[7]-w[1], vz = w[8]-w[2];
+		const uu = ux*ux+uy*uy+uz*uz, uv = ux*vx+uy*vy+uz*vz, vv = vx*vx+vy*vy+vz*vz, denominator = uu*vv-uv*uv;
+		this.setNormal(result,n.x,n.y,n.z);
+		for(let i = 0; i < hull._numVertices && result.numPoints < result.points.length; i++) {
+			const v = hull._vertices[i];
+			const x = tf._rotation00*v.x+tf._rotation01*v.y+tf._rotation02*v.z+tf._positionX;
+			const y = tf._rotation10*v.x+tf._rotation11*v.y+tf._rotation12*v.z+tf._positionY;
+			const z = tf._rotation20*v.x+tf._rotation21*v.y+tf._rotation22*v.z+tf._positionZ;
+			const distance = (x-w[0])*n.x+(y-w[1])*n.y+(z-w[2])*n.z;
+			if(distance > hull._gjkMargin) continue;
+			const px = x-n.x*distance, py = y-n.y*distance, pz = z-n.z*distance;
+			const qx = px-w[0], qy = py-w[1], qz = pz-w[2], qu = qx*ux+qy*uy+qz*uz, qv = qx*vx+qy*vy+qz*vz;
+			const a = (vv*qu-uv*qv)/denominator, b = (uu*qv-uv*qu)/denominator;
+			if(a < -1e-8 || b < -1e-8 || a+b > 1+1e-8) continue;
+			this.addPoint(result,x-n.x*hull._gjkMargin,y-n.y*hull._gjkMargin,z-n.z*hull._gjkMargin,px,py,pz,hull._gjkMargin-distance,i);
+		}
+		return result.numPoints > 0;
+	}
+	_boxContacts(result,box,tf,margin) {
+		// Clip the box's supporting face by the triangle's three edge planes.
+		// Clipping a cross-section of the box instead loses penetration at rotated edges.
+		let a = this._polygonA, b = this._polygonB, count = 4;
+		const n = this._normal, w = this._worldVertices;
+		const nx = tf._rotation00*n.x+tf._rotation10*n.y+tf._rotation20*n.z;
+		const ny = tf._rotation01*n.x+tf._rotation11*n.y+tf._rotation21*n.z;
+		const nz = tf._rotation02*n.x+tf._rotation12*n.y+tf._rotation22*n.z;
+		const axis = Math.abs(nx) >= Math.abs(ny) && Math.abs(nx) >= Math.abs(nz) ? 0 : Math.abs(ny) >= Math.abs(nz) ? 1 : 2;
+		const face = (axis === 0 ? nx : axis === 1 ? ny : nz) > 0 ? -1 : 1;
+		for(let i = 0; i < 4; i++) {
+			const u = i === 0 || i === 3 ? -1 : 1, v = i < 2 ? -1 : 1;
+			const x = (axis === 0 ? face : u)*box._halfExtentsX;
+			const y = (axis === 1 ? face : axis === 0 ? u : v)*box._halfExtentsY;
+			const z = (axis === 2 ? face : v)*box._halfExtentsZ;
+			a[i*3] = tf._rotation00*x+tf._rotation01*y+tf._rotation02*z+tf._positionX;
+			a[i*3+1] = tf._rotation10*x+tf._rotation11*y+tf._rotation12*z+tf._positionY;
+			a[i*3+2] = tf._rotation20*x+tf._rotation21*y+tf._rotation22*z+tf._positionZ;
+		}
+		for(let edge = 0; edge < 3 && count > 0; edge++) {
+			const j = edge*3, k = ((edge+1)%3)*3, ex = w[k]-w[j], ey = w[k+1]-w[j+1], ez = w[k+2]-w[j+2];
+			// Find the inward edge normal using the third vertex, also for double-sided meshes.
+			let px = n.y*ez-n.z*ey, py = n.z*ex-n.x*ez, pz = n.x*ey-n.y*ex;
+			const third = ((edge+2)%3)*3;
+			if(px*(w[third]-w[j])+py*(w[third+1]-w[j+1])+pz*(w[third+2]-w[j+2]) < 0) { px = -px; py = -py; pz = -pz; }
+			const offset = px*w[j]+py*w[j+1]+pz*w[j+2], tolerance = margin*Math.hypot(px,py,pz);
+			let next = 0;
+			for(let i = 0; i < count; i++) {
+				const prev = (i+count-1)%count;
+				const da = px*a[prev*3]+py*a[prev*3+1]+pz*a[prev*3+2]-offset+tolerance;
+				const db = px*a[i*3]+py*a[i*3+1]+pz*a[i*3+2]-offset+tolerance;
+				if((da >= 0) !== (db >= 0)) {
+					const f = da/(da-db);
+					for(let c = 0; c < 3; c++) b[next*3+c] = a[prev*3+c]+(a[i*3+c]-a[prev*3+c])*f;
+					next++;
+				}
+				if(db >= 0) { for(let c = 0; c < 3; c++) b[next*3+c] = a[i*3+c]; next++; }
+			}
+			count = next; const swap = a; a = b; b = swap;
+		}
+		this.setNormal(result,n.x,n.y,n.z);
+		const used = Math.min(count,result.points.length);
+		for(let i = 0; i < used; i++) {
+			const j = Math.floor(i*count/used)*3, x = a[j], y = a[j+1], z = a[j+2];
+			const depth = -((x-w[0])*n.x+(y-w[1])*n.y+(z-w[2])*n.z);
+			if(depth >= -margin) this.addPoint(result,x,y,z,x+n.x*depth,y+n.y*depth,z+n.z*depth,depth,i);
+		}
+		return result.numPoints > 0;
+	}
+};
+
+// The parent alone belongs to ContactManager/body lists. Children are pooled
+// constraints, with separate normals, and never generate duplicate pair events.
+oimo.dynamics.Contact.prototype._updateMeshManifolds = function() {
+	const firstMesh = this._s1._geom._type === 6;
+	const meshShape = firstMesh ? this._s1 : this._s2;
+	const convexShape = firstMesh ? this._s2 : this._s1;
+	const mesh = meshShape._geom;
+	let state = this._cachedDetectorData._meshState;
+	if(state != null && (state.mesh !== mesh || state.convex !== convexShape._geom)) {
+		state.dispose(); state = null;
+	}
+	if(state == null) {
+		state = new oimo.dynamics._MeshContactState(mesh,convexShape._geom,this._manifold);
+		this._cachedDetectorData._meshState = state;
+		this._manifold._meshState = state;
+	}
+	const previousTouching = this._touching;
+	const count = mesh._queryWorldAabb(convexShape._aabb,meshShape._transform);
+	state.active.length = 0;
+	state.generation++;
+	let representative = null;
+	for(let i = 0; i < count; i++) {
+		const triangle = mesh._candidates[i];
+		let child = state.byTriangle.get(triangle);
+		if(child == null) {
+			child = state.pool.pop();
+			if(child == null) {
+				child = new oimo.dynamics.Contact();
+				child._detector = new oimo.collision.narrowphase.detector._MeshTriangleDetector(triangle,firstMesh);
+			}
+			child._detector.triangle = triangle;
+			child._cachedDetectorData._clear();
+			state.byTriangle.set(triangle,child);
+		}
+		child._meshGeneration = state.generation;
+		child._s1 = this._s1; child._s2 = this._s2; child._b1 = this._b1; child._b2 = this._b2;
+		const cc = child._contactConstraint;
+		cc._s1 = this._s1; cc._s2 = this._s2; cc._b1 = this._b1; cc._b2 = this._b2;
+		cc._tf1 = this._b1._transform; cc._tf2 = this._b2._transform;
+		const r = child._detectorResult;
+		child._detector.detect(r,this._s1._geom,this._s2._geom,this._s1._transform,this._s2._transform,child._cachedDetectorData);
+		child._touching = r.numPoints > 0;
+		if(child._touching) {
+			child._manifold._buildBasis(r.normal);
+			cc._positionCorrectionAlgorithm = r.getMaxDepth() > oimo.common.Setting.contactUseAlternativePositionCorrectionAlgorithmDepthThreshold ? oimo.common.Setting.alternativeContactPositionCorrectionAlgorithm : oimo.common.Setting.defaultContactPositionCorrectionAlgorithm;
+			child._updater.totalUpdate(r,this._b1._transform,this._b2._transform);
+			state.active.push(child);
+			if(representative == null || r.getMaxDepth() > representative._detectorResult.getMaxDepth()) representative = child;
+		} else child._manifold._clear();
+	}
+	// Only retained nearby triangles keep contact state; travelling over a large
+	// terrain cannot accumulate a constraint for every triangle ever visited.
+	state.byTriangle.forEach(state.retireChild,state);
+	this._touching = representative != null;
+	state.representative = representative;
+	if(this._touching) {
+		const r = representative._detectorResult;
+		this._manifold._buildBasis(r.normal);
+		this._updater.totalUpdate(r,this._b1._transform,this._b2._transform);
+	} else this._manifold._clear();
+	let cb1 = this._s1._contactCallback, cb2 = this._s2._contactCallback;
+	if(cb1 === cb2) cb2 = null;
+	if(this._touching && !previousTouching) {
+		if(cb1 != null) cb1.beginContact(this);
+		if(cb2 != null) cb2.beginContact(this);
+	} else if(!this._touching && previousTouching) {
+		if(cb1 != null) cb1.endContact(this);
+		if(cb2 != null) cb2.endContact(this);
+	}
+	if(this._touching) {
+		if(cb1 != null) cb1.preSolve(this);
+		if(cb2 != null) cb2.preSolve(this);
+	}
+};
+
+oimo.dynamics._MeshContactState = class {
+	constructor(mesh,convex,manifold) {
+		this.mesh = mesh; this.convex = convex; this.manifold = manifold;
+		this.byTriangle = new Map(); this.pool = []; this.active = [];
+		this.generation = 0; this.representative = null;
+	}
+	clearManifolds() {
+		for(let i = 0; i < this.active.length; i++) this.active[i]._manifold._clear();
+	}
+	retireChild(child,triangle) {
+		if(child._meshGeneration === this.generation) return;
+		this.byTriangle.delete(triangle);
+		child._manifold._clear(); child._cachedDetectorData._clear();
+		child._s1 = child._s2 = child._b1 = child._b2 = null;
+		const cc = child._contactConstraint;
+		cc._s1 = cc._s2 = cc._b1 = cc._b2 = cc._tf1 = cc._tf2 = null;
+		this.pool.push(child);
+	}
+	dispose() {
+		this.clearManifolds();
+		this.byTriangle.clear(); this.pool.length = 0; this.active.length = 0;
+		this.manifold._meshState = null;
+		this.mesh = this.convex = this.manifold = this.representative = null;
+	}
+};
+
+// All four native destruction paths clear cached detector data before pooling
+// the parent. This hook releases children on removal, filtering and pool reuse.
+const mpMeshClearCachedData = oimo.collision.narrowphase.detector.CachedDetectorData.prototype._clear;
+oimo.collision.narrowphase.detector.CachedDetectorData.prototype._clear = function() {
+	if(this._meshState != null) { this._meshState.dispose(); this._meshState = null; }
+	mpMeshClearCachedData.call(this);
+};
+const mpMeshClearManifold = oimo.dynamics.constraint.contact.Manifold.prototype._clear;
+oimo.dynamics.constraint.contact.Manifold.prototype._clear = function() {
+	mpMeshClearManifold.call(this);
+	// MP callbacks clear the public manifold to suppress triggers/ignored pairs.
+	// Apply the same suppression to every triangle constraint, without disposing it.
+	if(this._meshState != null) this._meshState.clearManifolds();
+};
+const mpMeshPostSolve = oimo.dynamics.Contact.prototype._postSolve;
+oimo.dynamics.Contact.prototype._postSolve = function() {
+	const state = this._cachedDetectorData._meshState;
+	if(state != null && state.representative != null) {
+		const source = state.representative._manifold;
+		for(let i = 0; i < Math.min(this._manifold._numPoints,source._numPoints); i++) {
+			const dst = this._manifold._points[i]._impulse, src = source._points[i]._impulse;
+			dst.impulseN = src.impulseN; dst.impulseT = src.impulseT; dst.impulseB = src.impulseB;
+		}
+	}
+	mpMeshPostSolve.call(this);
+};
+
+const mpMeshAddShape = oimo.dynamics.rigidbody.RigidBody.prototype.addShape;
+oimo.dynamics.rigidbody.RigidBody.prototype.addShape = function(shape) {
+	if(shape._geom._type === 6 && this._type === 0) throw new Error('TriangleMeshGeometry requires a static or kinematic rigid body.');
+	mpMeshAddShape.call(this,shape);
+};
+const mpMeshSetBodyType = oimo.dynamics.rigidbody.RigidBody.prototype.setType;
+oimo.dynamics.rigidbody.RigidBody.prototype.setType = function(type) {
+	if(type === 0) {
+		for(let s = this._shapeList; s != null; s = s._next) {
+			if(s._geom._type === 6) throw new Error('TriangleMeshGeometry cannot become dynamic.');
+		}
+	}
+	mpMeshSetBodyType.call(this,type);
+};
+
+const mpMeshConvexCastProcess = oimo.dynamics._World.ConvexCastWrapper.prototype.process;
+oimo.dynamics._World.ConvexCastWrapper.prototype.process = function(proxy) {
+	const shape = proxy.userData, mesh = shape._geom;
+	if(mesh._type !== 6) { mpMeshConvexCastProcess.call(this,proxy); return; }
+	if(this._meshTriangle == null) {
+		this._meshTriangle = new oimo.collision.geometry._MeshTriangleGeometry();
+		this._meshCastAabb = new oimo.collision.geometry.Aabb();
+		this._meshEndAabb = new oimo.collision.geometry.Aabb();
+		this._meshEndTransform = new oimo.common.Transform();
+		this._meshBestHit = new oimo.collision.geometry.RayCastHit();
+	}
+	const a = this._meshCastAabb, b = this._meshEndAabb, end = this._meshEndTransform;
+	end.copyFrom(this.begin);
+	end._positionX += this.translation.x; end._positionY += this.translation.y; end._positionZ += this.translation.z;
+	this.convex._computeAabb(a,this.begin); this.convex._computeAabb(b,end);
+	const startX = (a._minX+a._maxX)*0.5, startY = (a._minY+a._maxY)*0.5, startZ = (a._minZ+a._maxZ)*0.5;
+	a._minX = Math.min(a._minX,b._minX); a._minY = Math.min(a._minY,b._minY); a._minZ = Math.min(a._minZ,b._minZ);
+	a._maxX = Math.max(a._maxX,b._maxX); a._maxY = Math.max(a._maxY,b._maxY); a._maxZ = Math.max(a._maxZ,b._maxZ);
+	const count = mesh._queryWorldAabb(a,shape._transform), tf = shape._transform, n = mesh._normals;
+	let fraction = Infinity;
+	const best = this._meshBestHit;
+	for(let i = 0; i < count; i++) {
+		const t = mesh._candidates[i];
+		this._meshTriangle.setTriangle(mesh,t);
+		const nx = tf._rotation00*n[t*3]+tf._rotation01*n[t*3+1]+tf._rotation02*n[t*3+2];
+		const ny = tf._rotation10*n[t*3]+tf._rotation11*n[t*3+1]+tf._rotation12*n[t*3+2];
+		const nz = tf._rotation20*n[t*3]+tf._rotation21*n[t*3+1]+tf._rotation22*n[t*3+2];
+		const vertex = this._meshTriangle._vertices[0];
+		const px = tf._rotation00*vertex.x+tf._rotation01*vertex.y+tf._rotation02*vertex.z+tf._positionX;
+		const py = tf._rotation10*vertex.x+tf._rotation11*vertex.y+tf._rotation12*vertex.z+tf._positionY;
+		const pz = tf._rotation20*vertex.x+tf._rotation21*vertex.y+tf._rotation22*vertex.z+tf._positionZ;
+		// A cast parallel to the face can still hit a boundary edge. Classify the
+		// starting side instead of rejecting all tangential/upward translations.
+		if(!mesh._doubleSided && (startX-px)*nx+(startY-py)*ny+(startZ-pz)*nz < -mesh._margin) continue;
+		if(oimo.collision.narrowphase.detector.gjkepa.GjkEpa.instance.convexCast(this.convex,this._meshTriangle,this.begin,tf,this.translation,this.zero,this.rayCastHit) && this.rayCastHit.fraction < fraction) {
+			const h = this.rayCastHit;
+			if(!mesh._doubleSided && h.normal.x*nx+h.normal.y*ny+h.normal.z*nz > 1e-6) continue;
+			fraction = h.fraction; best.fraction = fraction; best.triangleIndex = t;
+			// Preserve Oimo's convexCast normal convention (unlike rayCast normals).
+			best.position.copyFrom(h.position); best.normal.copyFrom(h.normal);
+		}
+	}
+	if(fraction !== Infinity) this.callback.process(shape,best);
+};
+
 export {oimo};
