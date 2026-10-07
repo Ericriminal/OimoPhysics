@@ -762,14 +762,12 @@ private class FaceClipper {
 	}
 
 	extern inline function clipWithParam(v1:IncidentVertex, v2:IncidentVertex, s1:Float, s2:Float):Void {
-		if (s1 > 0 && s2 > 0) {
+		// Keep boundary vertices once; interpolating an endpoint can duplicate it
+		// with rounding drift and overflow the eight-vertex clipping buffers.
+		if (s1 >= 0) {
 			add(v1);
-		} else if (s1 > 0 && s2 <= 0) {
-			// v2 is clipped
-			add(v1);
-			interp(v1, v2, s1 / (s1 - s2));
-		} else if (s1 <= 0 && s2 > 0) {
-			// v1 is clipped
+		}
+		if ((s1 > 0 && s2 < 0) || (s1 < 0 && s2 > 0)) {
 			interp(v1, v2, s1 / (s1 - s2));
 		}
 	}

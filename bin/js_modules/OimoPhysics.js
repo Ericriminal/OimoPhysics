@@ -5192,28 +5192,15 @@ oimo.collision.narrowphase.detector._BoxBoxDetector.FaceClipper = class oimo_col
 			let v2 = this.vertices[(i + 1) % this.numVertices];
 			let s1 = this.w + v1.x;
 			let s2 = this.w + v2.x;
-			if(s1 > 0 && s2 > 0) {
+			if(s1 >= 0) {
 				let _this = this.tmpVertices[this.numTmpVertices++];
 				_this.x = v1.x;
 				_this.y = v1.y;
 				_this.wx = v1.wx;
 				_this.wy = v1.wy;
 				_this.wz = v1.wz;
-			} else if(s1 > 0 && s2 <= 0) {
-				let _this = this.tmpVertices[this.numTmpVertices++];
-				_this.x = v1.x;
-				_this.y = v1.y;
-				_this.wx = v1.wx;
-				_this.wy = v1.wy;
-				_this.wz = v1.wz;
-				let t = s1 / (s1 - s2);
-				let _this1 = this.tmpVertices[this.numTmpVertices++];
-				_this1.x = v1.x + (v2.x - v1.x) * t;
-				_this1.y = v1.y + (v2.y - v1.y) * t;
-				_this1.wx = v1.wx + (v2.wx - v1.wx) * t;
-				_this1.wy = v1.wy + (v2.wy - v1.wy) * t;
-				_this1.wz = v1.wz + (v2.wz - v1.wz) * t;
-			} else if(s1 <= 0 && s2 > 0) {
+			}
+			if(s1 > 0 && s2 < 0 || s1 < 0 && s2 > 0) {
 				let t = s1 / (s1 - s2);
 				let _this = this.tmpVertices[this.numTmpVertices++];
 				_this.x = v1.x + (v2.x - v1.x) * t;
@@ -5236,28 +5223,15 @@ oimo.collision.narrowphase.detector._BoxBoxDetector.FaceClipper = class oimo_col
 			let v2 = this.vertices[(i + 1) % this.numVertices];
 			let s1 = this.w - v1.x;
 			let s2 = this.w - v2.x;
-			if(s1 > 0 && s2 > 0) {
+			if(s1 >= 0) {
 				let _this = this.tmpVertices[this.numTmpVertices++];
 				_this.x = v1.x;
 				_this.y = v1.y;
 				_this.wx = v1.wx;
 				_this.wy = v1.wy;
 				_this.wz = v1.wz;
-			} else if(s1 > 0 && s2 <= 0) {
-				let _this = this.tmpVertices[this.numTmpVertices++];
-				_this.x = v1.x;
-				_this.y = v1.y;
-				_this.wx = v1.wx;
-				_this.wy = v1.wy;
-				_this.wz = v1.wz;
-				let t = s1 / (s1 - s2);
-				let _this1 = this.tmpVertices[this.numTmpVertices++];
-				_this1.x = v1.x + (v2.x - v1.x) * t;
-				_this1.y = v1.y + (v2.y - v1.y) * t;
-				_this1.wx = v1.wx + (v2.wx - v1.wx) * t;
-				_this1.wy = v1.wy + (v2.wy - v1.wy) * t;
-				_this1.wz = v1.wz + (v2.wz - v1.wz) * t;
-			} else if(s1 <= 0 && s2 > 0) {
+			}
+			if(s1 > 0 && s2 < 0 || s1 < 0 && s2 > 0) {
 				let t = s1 / (s1 - s2);
 				let _this = this.tmpVertices[this.numTmpVertices++];
 				_this.x = v1.x + (v2.x - v1.x) * t;
@@ -5280,28 +5254,15 @@ oimo.collision.narrowphase.detector._BoxBoxDetector.FaceClipper = class oimo_col
 			let v2 = this.vertices[(i + 1) % this.numVertices];
 			let s1 = this.h + v1.y;
 			let s2 = this.h + v2.y;
-			if(s1 > 0 && s2 > 0) {
+			if(s1 >= 0) {
 				let _this = this.tmpVertices[this.numTmpVertices++];
 				_this.x = v1.x;
 				_this.y = v1.y;
 				_this.wx = v1.wx;
 				_this.wy = v1.wy;
 				_this.wz = v1.wz;
-			} else if(s1 > 0 && s2 <= 0) {
-				let _this = this.tmpVertices[this.numTmpVertices++];
-				_this.x = v1.x;
-				_this.y = v1.y;
-				_this.wx = v1.wx;
-				_this.wy = v1.wy;
-				_this.wz = v1.wz;
-				let t = s1 / (s1 - s2);
-				let _this1 = this.tmpVertices[this.numTmpVertices++];
-				_this1.x = v1.x + (v2.x - v1.x) * t;
-				_this1.y = v1.y + (v2.y - v1.y) * t;
-				_this1.wx = v1.wx + (v2.wx - v1.wx) * t;
-				_this1.wy = v1.wy + (v2.wy - v1.wy) * t;
-				_this1.wz = v1.wz + (v2.wz - v1.wz) * t;
-			} else if(s1 <= 0 && s2 > 0) {
+			}
+			if(s1 > 0 && s2 < 0 || s1 < 0 && s2 > 0) {
 				let t = s1 / (s1 - s2);
 				let _this = this.tmpVertices[this.numTmpVertices++];
 				_this.x = v1.x + (v2.x - v1.x) * t;
@@ -5324,28 +5285,15 @@ oimo.collision.narrowphase.detector._BoxBoxDetector.FaceClipper = class oimo_col
 			let v2 = this.vertices[(i + 1) % this.numVertices];
 			let s1 = this.h - v1.y;
 			let s2 = this.h - v2.y;
-			if(s1 > 0 && s2 > 0) {
+			if(s1 >= 0) {
 				let _this = this.tmpVertices[this.numTmpVertices++];
 				_this.x = v1.x;
 				_this.y = v1.y;
 				_this.wx = v1.wx;
 				_this.wy = v1.wy;
 				_this.wz = v1.wz;
-			} else if(s1 > 0 && s2 <= 0) {
-				let _this = this.tmpVertices[this.numTmpVertices++];
-				_this.x = v1.x;
-				_this.y = v1.y;
-				_this.wx = v1.wx;
-				_this.wy = v1.wy;
-				_this.wz = v1.wz;
-				let t = s1 / (s1 - s2);
-				let _this1 = this.tmpVertices[this.numTmpVertices++];
-				_this1.x = v1.x + (v2.x - v1.x) * t;
-				_this1.y = v1.y + (v2.y - v1.y) * t;
-				_this1.wx = v1.wx + (v2.wx - v1.wx) * t;
-				_this1.wy = v1.wy + (v2.wy - v1.wy) * t;
-				_this1.wz = v1.wz + (v2.wz - v1.wz) * t;
-			} else if(s1 <= 0 && s2 > 0) {
+			}
+			if(s1 > 0 && s2 < 0 || s1 < 0 && s2 > 0) {
 				let t = s1 / (s1 - s2);
 				let _this = this.tmpVertices[this.numTmpVertices++];
 				_this.x = v1.x + (v2.x - v1.x) * t;
