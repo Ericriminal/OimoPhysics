@@ -1780,6 +1780,9 @@ export namespace oimo.collision.geometry {
 		_vertices: oimo.common.Vec3[];
 		_tmpVertices: oimo.common.Vec3[];
 		_numVertices: number;
+		_centerOfMassX: number;
+		_centerOfMassY: number;
+		_centerOfMassZ: number;
 		/**
 		 * Returns the vertices of the convex hull.
 		 */
