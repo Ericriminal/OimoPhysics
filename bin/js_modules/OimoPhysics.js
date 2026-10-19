@@ -29423,10 +29423,14 @@ oimo.dynamics.constraint.solver.direct.DirectJointConstraintSolver = class oimo_
 						qY = (_this._transform._rotation12 + _this._transform._rotation21) * s;
 						qW = (_this._transform._rotation10 - _this._transform._rotation01) * s;
 					}
-					qX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
-					qY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
-					qZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
-					qW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+					let __tmp__QuatX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
+					let __tmp__QuatY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
+					let __tmp__QuatZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
+					let __tmp__QuatW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+					qX = __tmp__QuatX;
+					qY = __tmp__QuatY;
+					qZ = __tmp__QuatZ;
+					qW = __tmp__QuatW;
 					let l = qX * qX + qY * qY + qZ * qZ + qW * qW;
 					if(l > 1e-32) {
 						l = 1 / Math.sqrt(l);
@@ -31279,10 +31283,14 @@ oimo.dynamics.constraint.solver.pgs.PgsContactConstraintSolver = class oimo_dyna
 			qY = (_this2._transform._rotation12 + _this2._transform._rotation21) * s;
 			qW = (_this2._transform._rotation10 - _this2._transform._rotation01) * s;
 		}
-		qX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
-		qY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
-		qZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
-		qW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+		let __tmp__QuatX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
+		let __tmp__QuatY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
+		let __tmp__QuatZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
+		let __tmp__QuatW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+		qX = __tmp__QuatX;
+		qY = __tmp__QuatY;
+		qZ = __tmp__QuatZ;
+		qW = __tmp__QuatW;
 		let l = qX * qX + qY * qY + qZ * qZ + qW * qW;
 		if(l > 1e-32) {
 			l = 1 / Math.sqrt(l);
@@ -32363,10 +32371,14 @@ oimo.dynamics.constraint.solver.pgs.PgsJointConstraintSolver = class oimo_dynami
 			qY = (_this2._transform._rotation12 + _this2._transform._rotation21) * s;
 			qW = (_this2._transform._rotation10 - _this2._transform._rotation01) * s;
 		}
-		qX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
-		qY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
-		qZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
-		qW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+		let __tmp__QuatX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
+		let __tmp__QuatY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
+		let __tmp__QuatZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
+		let __tmp__QuatW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+		qX = __tmp__QuatX;
+		qY = __tmp__QuatY;
+		qZ = __tmp__QuatZ;
+		qW = __tmp__QuatW;
 		let l = qX * qX + qY * qY + qZ * qZ + qW * qW;
 		if(l > 1e-32) {
 			l = 1 / Math.sqrt(l);
@@ -32902,10 +32914,14 @@ oimo.dynamics.rigidbody.RigidBody = class oimo_dynamics_rigidbody_RigidBody {
 				qY = (this._transform._rotation12 + this._transform._rotation21) * s;
 				qW = (this._transform._rotation10 - this._transform._rotation01) * s;
 			}
-			qX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
-			qY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
-			qZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
-			qW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+			let __tmp__QuatX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
+			let __tmp__QuatY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
+			let __tmp__QuatZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
+			let __tmp__QuatW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+			qX = __tmp__QuatX;
+			qY = __tmp__QuatY;
+			qZ = __tmp__QuatZ;
+			qW = __tmp__QuatW;
 			let l = qX * qX + qY * qY + qZ * qZ + qW * qW;
 			if(l > 1e-32) {
 				l = 1 / Math.sqrt(l);
@@ -33116,10 +33132,14 @@ oimo.dynamics.rigidbody.RigidBody = class oimo_dynamics_rigidbody_RigidBody {
 				qY = (this._transform._rotation12 + this._transform._rotation21) * s;
 				qW = (this._transform._rotation10 - this._transform._rotation01) * s;
 			}
-			qX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
-			qY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
-			qZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
-			qW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+			let __tmp__QuatX = dqW * qX + dqX * qW + dqY * qZ - dqZ * qY;
+			let __tmp__QuatY = dqW * qY - dqX * qZ + dqY * qW + dqZ * qX;
+			let __tmp__QuatZ = dqW * qZ + dqX * qY - dqY * qX + dqZ * qW;
+			let __tmp__QuatW = dqW * qW - dqX * qX - dqY * qY - dqZ * qZ;
+			qX = __tmp__QuatX;
+			qY = __tmp__QuatY;
+			qZ = __tmp__QuatZ;
+			qW = __tmp__QuatW;
 			let l = qX * qX + qY * qY + qZ * qZ + qW * qW;
 			if(l > 1e-32) {
 				l = 1 / Math.sqrt(l);

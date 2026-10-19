@@ -1128,14 +1128,19 @@ class M {
 	}
 
 	public static macro function quat_mul(dst:Expr, src1:Expr, src2:Expr) {
+		var tmps = "__tmp__Quat".quatNames();
 		var as = src1.s().quatNames();
 		var bs = src2.s().quatNames();
-		return assignVars(dst.s().quatNames(), [
-			macro ${as[3].f()} * ${bs[0].f()} + ${as[0].f()} * ${bs[3].f()} + ${as[1].f()} * ${bs[2].f()} - ${as[2].f()} * ${bs[1].f()},
-			macro ${as[3].f()} * ${bs[1].f()} - ${as[0].f()} * ${bs[2].f()} + ${as[1].f()} * ${bs[3].f()} + ${as[2].f()} * ${bs[0].f()},
-			macro ${as[3].f()} * ${bs[2].f()} + ${as[0].f()} * ${bs[1].f()} - ${as[1].f()} * ${bs[0].f()} + ${as[2].f()} * ${bs[3].f()},
-			macro ${as[3].f()} * ${bs[3].f()} - ${as[0].f()} * ${bs[0].f()} - ${as[1].f()} * ${bs[1].f()} - ${as[2].f()} * ${bs[2].f()}
-		]);
+		return macro {
+			var __tmp__QuatX:Float, __tmp__QuatY:Float, __tmp__QuatZ:Float, __tmp__QuatW:Float;
+			${assignVars(tmps, [
+				macro ${as[3].f()} * ${bs[0].f()} + ${as[0].f()} * ${bs[3].f()} + ${as[1].f()} * ${bs[2].f()} - ${as[2].f()} * ${bs[1].f()},
+				macro ${as[3].f()} * ${bs[1].f()} - ${as[0].f()} * ${bs[2].f()} + ${as[1].f()} * ${bs[3].f()} + ${as[2].f()} * ${bs[0].f()},
+				macro ${as[3].f()} * ${bs[2].f()} + ${as[0].f()} * ${bs[1].f()} - ${as[1].f()} * ${bs[0].f()} + ${as[2].f()} * ${bs[3].f()},
+				macro ${as[3].f()} * ${bs[3].f()} - ${as[0].f()} * ${bs[0].f()} - ${as[1].f()} * ${bs[1].f()} - ${as[2].f()} * ${bs[2].f()}
+			])};
+			${assignVars(dst.s().quatNames(), tmps)};
+		};
 	}
 
 	public static macro function quat_arc(dst:Expr, v1:Expr, v2:Expr) {
